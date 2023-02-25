@@ -6,7 +6,7 @@ The [Blitz3d game engine](https://github.com/blitz-research/blitz3d) uses the `.
 
 Parsing and retrieving the positions and normals.
 
-```rs
+```rust
 let bytes = unimplemented!();
 
 let b3d = b3d::B3D::read(bytes)?;

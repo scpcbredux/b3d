@@ -389,6 +389,20 @@ impl Node {
     }
 }
 
+/// Example
+///
+/// ```rs
+/// let bytes = unimplemented!();
+///
+/// let b3d = b3d::B3D::read(bytes)?;
+///
+/// let vertices = b3d.node.mesh.vertices.vertices;
+/// let positions: Vec<_> = vertices.iter().map(|v| v.position).collect();
+/// let normals: Vec<_> = vertices.iter().map(|v| v.normal).collect();
+///
+/// println!("Postions: {:#?}", positions);
+/// println!("Normals: {:#?}", normals);
+/// ```
 #[derive(Debug)]
 pub struct B3D {
     pub version: u32,
