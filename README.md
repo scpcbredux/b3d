@@ -1,5 +1,7 @@
 ## B3D
 
+![crates.io](https://img.shields.io/crates/v/b3d.svg) ![docs.rs](https://img.shields.io/docsrs/v/b3d.svg) ![license](https://img.shields.io/crates/l/b3d.svg)
+
 The [Blitz3d game engine](https://github.com/blitz-research/blitz3d) uses the `.b3d` extension, which is provided by this crate.
 
 ### Examples
