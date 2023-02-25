@@ -32,8 +32,8 @@ println!("Normals: {:#?}", normals);
 | MESH     | Mesh     |
 | BONE     | Bone     |
 | KEYS     | Key     |
-| NODE     | Node     |
-| ANIM     | Sequence     |
+| ANIM     | Animation     |
+| SEQS     | Sequence     |
 
 ### Task list
 
