@@ -1,12 +1,12 @@
-mod error;
-mod utils;
-
 use std::io::Cursor;
 use std::io::{Read, Seek};
 use byteorder::{ReadBytesExt, LittleEndian};
-use anyhow::Result;
-use crate::error::B3dError;
-use crate::utils::*;
+
+mod error;
+mod utils;
+
+use error::B3dError;
+use utils::*;
 
 #[derive(Debug, Clone)]
 pub struct Texture {
@@ -19,7 +19,7 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn read<T>(data: &mut T) -> Result<Self>
+    pub fn read<T>(data: &mut T) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
@@ -54,7 +54,7 @@ pub struct Brush {
 }
 
 impl Brush {
-    pub fn read<T>(data: &mut T, n_texs: usize) -> Result<Self>
+    pub fn read<T>(data: &mut T, n_texs: usize) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
@@ -99,7 +99,7 @@ pub struct Verts {
 }
 
 impl Verts {
-    pub fn read<T>(data: &mut T, next: u64) -> Result<Self>
+    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
@@ -120,11 +120,6 @@ impl Verts {
             if flags & 2 != 0 {
                 data.read_f32_into::<LittleEndian>(&mut color)?;
             }
-            // This system doesn't work with bevy >:(
-            // let mut tex_coords = Vec::new();
-            // for _ in 0..(tex_coord_sets * tex_coord_set_size) as usize {
-            //     tex_coords.push(data.read_f32::<LittleEndian>()?);
-            // }
             let mut tex_coords = [0.0; 2];
             data.read_f32_into::<LittleEndian>(&mut tex_coords)?;
 
@@ -152,7 +147,7 @@ pub struct Tris {
 }
 
 impl Tris {
-    pub fn read<T>(data: &mut T, next: u64) -> Result<Self>
+    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
@@ -180,7 +175,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn read<T>(data: &mut T, next: u64) -> Result<Self>
+    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
@@ -209,7 +204,7 @@ pub struct Bone {
 }
 
 impl Bone {
-    pub fn read<T>(data: &mut T) -> Result<Self>
+    pub fn read<T>(data: &mut T) -> Result<Self, B3dError>
     where
         T: Read
     {
@@ -229,7 +224,7 @@ pub struct Key {
 }
 
 impl Key {
-    pub fn read<T>(data: &mut T, flags: u32) -> Result<Self>
+    pub fn read<T>(data: &mut T, flags: u32) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
@@ -265,7 +260,7 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn read<T>(data: &mut T, _next: u64) -> Result<Self>
+    pub fn read<T>(data: &mut T, _next: u64) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
@@ -280,21 +275,21 @@ impl Animation {
 #[derive(Debug, Default)]
 pub struct Sequence {
     pub name: String,
-    pub something: u32,
-    pub something2: u32,
-    pub something3: u32,
+    pub first_frame: u32,
+    pub last_frame: u32,
+    pub unused: u32,
 }
 
 impl Sequence {
-    pub fn read<T>(data: &mut T, _next: u64) -> Result<Self>
+    pub fn read<T>(data: &mut T, _next: u64) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
         Ok(Self {
             name: read_null_term_string(data),
-            something: data.read_u32::<LittleEndian>()?,
-            something2: data.read_u32::<LittleEndian>()?,
-            something3: data.read_u32::<LittleEndian>()?,
+            first_frame: data.read_u32::<LittleEndian>()?,
+            last_frame: data.read_u32::<LittleEndian>()?,
+            unused: data.read_u32::<LittleEndian>()?,
         })
     }
 }
@@ -315,7 +310,7 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn read<T>(data: &mut T, next: u64) -> Result<Self>
+    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, B3dError>
     where
         T: Read + Seek
     {
@@ -366,7 +361,7 @@ impl Node {
         })
     }
 
-    pub fn read_bones<T>(data: &mut T, next: u64) -> Result<Vec<Bone>>
+    pub fn read_bones<T>(data: &mut T, next: u64) -> Result<Vec<Bone>, B3dError>
     where
         T: Read + Seek
     {
@@ -377,7 +372,7 @@ impl Node {
         Ok(bones)
     }
 
-    pub fn read_keys<T>(data: &mut T, next: u64, flags: u32) -> Result<Vec<Key>>
+    pub fn read_keys<T>(data: &mut T, next: u64, flags: u32) -> Result<Vec<Key>, B3dError>
     where
         T: Read + Seek
     {
@@ -412,7 +407,7 @@ pub struct B3D {
 }
 
 impl B3D {
-    pub fn read(data: &[u8]) -> Result<Self> {
+    pub fn read(data: &[u8]) -> Result<Self, B3dError> {
         let mut cursor = Cursor::new(data);
 
         let main_chunk = Chunk::read(&mut cursor)?;
@@ -442,7 +437,7 @@ impl B3D {
         })
     }
 
-    pub fn read_textures<T>(data: &mut T, next: u64) -> Result<Vec<Texture>>
+    pub fn read_textures<T>(data: &mut T, next: u64) -> Result<Vec<Texture>, B3dError>
     where
         T: Read + Seek
     {
@@ -453,7 +448,7 @@ impl B3D {
         Ok(textures)
     }
 
-    pub fn read_brushes<T>(data: &mut T, next: u64) -> Result<Vec<Brush>>
+    pub fn read_brushes<T>(data: &mut T, next: u64) -> Result<Vec<Brush>, B3dError>
     where
         T: Read + Seek
     {
