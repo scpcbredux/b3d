@@ -2,11 +2,19 @@ use std::io::Cursor;
 use std::io::{Read, Seek};
 use byteorder::{ReadBytesExt, LittleEndian};
 
-mod error;
 mod utils;
 
-use error::B3dError;
 use utils::*;
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error(transparent)]
+    IO(#[from] std::io::Error),
+    #[error(transparent)]
+    Utf8(#[from] std::string::FromUtf8Error),
+    #[error("Invalid Chunk: {0}")]
+    InvalidChunk(Chunk),
+}
 
 #[derive(Debug, Clone)]
 pub struct Texture {
@@ -19,7 +27,7 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn read<T>(data: &mut T) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -54,7 +62,7 @@ pub struct Brush {
 }
 
 impl Brush {
-    pub fn read<T>(data: &mut T, n_texs: usize) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T, n_texs: usize) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -99,7 +107,7 @@ pub struct Verts {
 }
 
 impl Verts {
-    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -147,7 +155,7 @@ pub struct Tris {
 }
 
 impl Tris {
-    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -175,7 +183,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -204,7 +212,7 @@ pub struct Bone {
 }
 
 impl Bone {
-    pub fn read<T>(data: &mut T) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T) -> Result<Self, Error>
     where
         T: Read
     {
@@ -224,7 +232,7 @@ pub struct Key {
 }
 
 impl Key {
-    pub fn read<T>(data: &mut T, flags: u32) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T, flags: u32) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -260,7 +268,7 @@ pub struct Animation {
 }
 
 impl Animation {
-    pub fn read<T>(data: &mut T, _next: u64) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T, _next: u64) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -281,7 +289,7 @@ pub struct Sequence {
 }
 
 impl Sequence {
-    pub fn read<T>(data: &mut T, _next: u64) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T, _next: u64) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -310,7 +318,7 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T, next: u64) -> Result<Self, Error>
     where
         T: Read + Seek
     {
@@ -342,7 +350,7 @@ impl Node {
                 "NODE" => children.push(Node::read(data, chunk.next)?),
                 "ANIM" => animation = Animation::read(data, chunk.next)?,
                 "SEQS" => sequences.push(Sequence::read(data, chunk.next)?),
-                _ => return Err(B3dError::InvalidChunk(chunk).into()),
+                _ => return Err(Error::InvalidChunk(chunk).into()),
             }
         }
 
@@ -361,7 +369,7 @@ impl Node {
         })
     }
 
-    pub fn read_bones<T>(data: &mut T, next: u64) -> Result<Vec<Bone>, B3dError>
+    pub fn read_bones<T>(data: &mut T, next: u64) -> Result<Vec<Bone>, Error>
     where
         T: Read + Seek
     {
@@ -372,7 +380,7 @@ impl Node {
         Ok(bones)
     }
 
-    pub fn read_keys<T>(data: &mut T, next: u64, flags: u32) -> Result<Vec<Key>, B3dError>
+    pub fn read_keys<T>(data: &mut T, next: u64, flags: u32) -> Result<Vec<Key>, Error>
     where
         T: Read + Seek
     {
@@ -407,12 +415,12 @@ pub struct B3D {
 }
 
 impl B3D {
-    pub fn read(data: &[u8]) -> Result<Self, B3dError> {
+    pub fn read(data: &[u8]) -> Result<Self, Error> {
         let mut cursor = Cursor::new(data);
 
         let main_chunk = Chunk::read(&mut cursor)?;
         if main_chunk.tag != "BB3D" {
-            return Err(B3dError::InvalidChunk(main_chunk).into());
+            return Err(Error::InvalidChunk(main_chunk).into());
         }
         let version = cursor.read_u32::<LittleEndian>()?;
         let mut textures = Vec::new();
@@ -425,7 +433,7 @@ impl B3D {
                 "TEXS" => textures = Self::read_textures(&mut cursor, chunk.next)?,
                 "BRUS" => brushes = Self::read_brushes(&mut cursor, chunk.next)?,
                 "NODE" => node = Node::read(&mut cursor, chunk.next)?,
-                _ => return Err(B3dError::InvalidChunk(chunk).into()),
+                _ => return Err(Error::InvalidChunk(chunk).into()),
             }
         }
 
@@ -437,7 +445,7 @@ impl B3D {
         })
     }
 
-    pub fn read_textures<T>(data: &mut T, next: u64) -> Result<Vec<Texture>, B3dError>
+    pub fn read_textures<T>(data: &mut T, next: u64) -> Result<Vec<Texture>, Error>
     where
         T: Read + Seek
     {
@@ -448,7 +456,7 @@ impl B3D {
         Ok(textures)
     }
 
-    pub fn read_brushes<T>(data: &mut T, next: u64) -> Result<Vec<Brush>, B3dError>
+    pub fn read_brushes<T>(data: &mut T, next: u64) -> Result<Vec<Brush>, Error>
     where
         T: Read + Seek
     {

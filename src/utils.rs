@@ -2,7 +2,7 @@ use std::io::{Read, Seek};
 use std::fmt;
 use byteorder::{ReadBytesExt, LittleEndian};
 
-use crate::error::B3dError;
+use crate::Error;
 
 /// The `Vec2` is used for 2D dimensions.
 pub type Vec2 = [f32; 2];
@@ -28,7 +28,7 @@ where
     String::from_utf8(string).unwrap()
 }
 
-pub fn eof<T>(data: &mut T, next: u64) -> Result<bool, B3dError>
+pub fn eof<T>(data: &mut T, next: u64) -> Result<bool, Error>
 where
     T: Seek
 {
@@ -45,7 +45,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn read<T>(data: &mut T) -> Result<Self, B3dError>
+    pub fn read<T>(data: &mut T) -> Result<Self, Error>
     where
         T: Read + Seek
     {
