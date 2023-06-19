@@ -4,9 +4,7 @@
 
 The [Blitz3d game engine](https://github.com/blitz-research/blitz3d) uses the `.b3d` extension, which is provided by this crate.
 
-### Examples
-
-Parsing and retrieving the positions and normals.
+### Usage
 
 ```rust
 let bytes = unimplemented!();
@@ -24,8 +22,9 @@ println!("Normals: {:#?}", normals);
 ### Task list
 
 - [ ] Write documentation
-- [ ] Create writer
-- [ ] Simplify code
+- [ ] Switch to binrw
+- [ ] Implement bones and weights
+- [ ] Add examples
 
-#### References
+#### Similar Projects
 - [Blender b3d import/export plugin](https://github.com/joric/io_scene_b3d)
