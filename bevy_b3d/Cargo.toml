@@ -7,7 +7,7 @@ description = "A Bevy extension for B3D loading"
 homepage = "https://github.com/scpcbredux/b3d/"
 documentation = "https://docs.rs/b3d"
 repository = "https://github.com/scpcbredux/b3d/"
-readme = "README.md"
+readme = "../README.md"
 keywords = ["bevy"]
 
 [dependencies]
