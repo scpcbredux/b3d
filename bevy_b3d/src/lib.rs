@@ -3,7 +3,7 @@ pub use b3d;
 
 mod loader;
 
-use bevy::{prelude::*, reflect::TypeUuid};
+use bevy::{prelude::*, reflect::{TypeUuid, TypePath}};
 
 /// Adss support for b3d file loading to the app.
 #[derive(Default)]
