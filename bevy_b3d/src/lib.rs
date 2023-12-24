@@ -1,9 +1,13 @@
-pub use loader::*;
 pub use b3d;
+pub use loader::*;
 
 mod loader;
 
-use bevy::{prelude::*, reflect::{TypeUuid, TypePath}};
+use bevy::{
+    prelude::*,
+    reflect::TypePath,
+    render::{renderer::RenderDevice, texture::CompressedImageFormats},
+};
 
 /// Adss support for b3d file loading to the app.
 #[derive(Default)]
@@ -11,16 +15,26 @@ pub struct B3DPlugin;
 
 impl Plugin for B3DPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset_loader::<B3DLoader>()
-            .add_asset::<B3D>()
-            .add_asset::<B3DNode>()
-            .add_asset::<B3DMesh>();
+        app.init_asset::<B3D>()
+            .init_asset::<B3DNode>()
+            .init_asset::<B3DMesh>()
+            .preregister_asset_loader::<B3DLoader>(&["b3d"]);
+    }
+
+    fn finish(&self, app: &mut App) {
+        let supported_compressed_formats = match app.world.get_resource::<RenderDevice>() {
+            Some(render_device) => CompressedImageFormats::from_features(render_device.features()),
+
+            None => CompressedImageFormats::NONE,
+        };
+        app.register_asset_loader(B3DLoader {
+            supported_compressed_formats,
+        });
     }
 }
 
 /// Representation of a loaded b3d file.
-#[derive(Debug, TypeUuid, TypePath)]
-#[uuid = "bea01a2e-984c-4e7d-ace8-64a580e882cc"]
+#[derive(Asset, Debug, TypePath)]
 pub struct B3D {
     pub scene: Handle<Scene>,
     pub meshes: Vec<Handle<B3DMesh>>,
@@ -29,8 +43,7 @@ pub struct B3D {
 }
 
 /// A b3d node with all of its child nodes, its [`B3DMesh`] and [`Transform`]
-#[derive(Debug, TypeUuid, TypePath)]
-#[uuid = "c0375473-fdfa-4f47-99d7-60ab2f5c6b88"]
+#[derive(Asset, Debug, TypePath)]
 pub struct B3DNode {
     pub children: Vec<B3DNode>,
     pub mesh: Option<Handle<B3DMesh>>,
@@ -38,8 +51,7 @@ pub struct B3DNode {
 }
 
 /// A b3d mesh, which may contists of a [`Mesh`] and an optional [`StandardMaterial`].
-#[derive(Debug, TypeUuid, TypePath)]
-#[uuid = "26c8d9d7-2197-4ce9-a250-1b9a8b775689"]
+#[derive(Asset, Debug, TypePath)]
 pub struct B3DMesh {
     pub mesh: Handle<Mesh>,
     pub material: Option<Handle<StandardMaterial>>,

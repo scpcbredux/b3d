@@ -1,14 +1,13 @@
 use anyhow::Result;
 use bevy::{
-    asset::{AssetIoError, AssetLoader, AssetPath, LoadContext, LoadedAsset},
+    asset::{io::Reader, AssetLoader, AsyncReadExt, LoadContext, ReadAssetBytesError},
     prelude::*,
     render::{
         mesh::Indices,
         render_resource::PrimitiveTopology,
         renderer::RenderDevice,
-        texture::{CompressedImageFormats, ImageType, TextureError},
+        texture::{CompressedImageFormats, ImageSampler, ImageType, TextureError},
     },
-    utils::BoxedFuture,
 };
 use std::path::Path;
 use thiserror::Error;
@@ -20,24 +19,36 @@ use crate::B3D;
 pub enum B3DError {
     #[error(transparent)]
     B3D(#[from] b3d::Error),
+    /// Error when loading a texture. Might be due to a disabled image file format feature.
     #[error("You may need to add the feature for the file format: {0}")]
     ImageError(#[from] TextureError),
-    #[error("failed to load an asset path: {0}")]
-    AssetIoError(#[from] AssetIoError),
+    /// Failed to read bytes from an asset path.
+    #[error("failed to read bytes from an asset path: {0}")]
+    ReadAssetBytesError(#[from] ReadAssetBytesError),
+    /// Failed to load a file.
+    #[error("failed to load file: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 pub struct B3DLoader {
-    supported_compressed_formats: CompressedImageFormats,
+    pub(crate) supported_compressed_formats: CompressedImageFormats,
 }
 
 impl AssetLoader for B3DLoader {
+    type Asset = B3D;
+    type Settings = ();
+    type Error = B3DError;
+
     fn load<'a>(
         &'a self,
-        bytes: &'a [u8],
+        reader: &'a mut Reader,
+        _settings: &'a (),
         load_context: &'a mut LoadContext,
-    ) -> BoxedFuture<'a, Result<()>> {
+    ) -> bevy::utils::BoxedFuture<'a, Result<B3D, Self::Error>> {
         Box::pin(async move {
-            Ok(load_b3d(bytes, load_context, self.supported_compressed_formats).await?)
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+            load_b3d(self, &bytes, load_context).await
         })
     }
 
@@ -60,28 +71,26 @@ impl FromWorld for B3DLoader {
 
 /// Loads an entire b3d file.
 async fn load_b3d<'a, 'b>(
+    loader: &B3DLoader,
     bytes: &'a [u8],
     load_context: &'a mut LoadContext<'b>,
-    supported_compressed_formats: CompressedImageFormats,
-) -> Result<(), B3DError> {
+) -> Result<B3D, B3DError> {
     let b3d = b3d::B3D::read(bytes)?;
 
     let mut materials = vec![];
     for (texture_index, texture) in b3d.textures.into_iter().enumerate() {
         if let Ok(texture) =
-            load_texture(&texture, load_context, supported_compressed_formats).await
+            load_texture(&texture, load_context, loader.supported_compressed_formats).await
         {
-            let texture_handle = load_context.set_labeled_asset(
-                &format!("Texture{}", texture_index),
-                LoadedAsset::new(texture),
-            );
+            let texture_handle =
+                load_context.add_labeled_asset(format!("Texture{}", texture_index), texture);
 
-            let handle = load_context.set_labeled_asset(
-                &format!("Material{}", texture_index),
-                LoadedAsset::new(StandardMaterial {
+            let handle = load_context.add_labeled_asset(
+                format!("Material{}", texture_index),
+                StandardMaterial {
                     base_color_texture: Some(texture_handle),
                     ..Default::default()
-                }),
+                },
             );
             materials.push(handle);
         }
@@ -91,14 +100,14 @@ async fn load_b3d<'a, 'b>(
 
     let mut meshes = vec![];
     let (mesh, mesh_label) = load_mesh(&b3d.node.mesh, 0)?;
-    let mesh_handle = load_context.set_labeled_asset(&mesh_label, LoadedAsset::new(mesh));
-    let mat_asset_path = AssetPath::new_ref(load_context.path(), Some("Material0"));
-    let bmesh_handle = load_context.set_labeled_asset(
-        "B3DMesh0",
-        LoadedAsset::new(crate::B3DMesh {
+    let mesh_handle = load_context.add_labeled_asset(mesh_label, mesh);
+    let mat_handle = load_context.get_label_handle("Material0");
+    let bmesh_handle = load_context.add_labeled_asset(
+        "B3DMesh0".to_owned(),
+        crate::B3DMesh {
             mesh: mesh_handle,
-            material: Some(load_context.get_handle(mat_asset_path)),
-        }),
+            material: Some(mat_handle),
+        },
     );
     meshes.push(bmesh_handle);
 
@@ -107,11 +116,12 @@ async fn load_b3d<'a, 'b>(
     let scene = {
         let mut err = None;
         let mut world = World::default();
+        let mut scene_load_context = load_context.begin_labeled_asset();
 
         world
             .spawn(SpatialBundle::INHERITED_IDENTITY)
             .with_children(|parent| {
-                let result = load_node(&b3d.node, parent, load_context);
+                let result = load_node(&b3d.node, parent, &mut scene_load_context);
                 if result.is_err() {
                     err = Some(result)
                 }
@@ -120,17 +130,16 @@ async fn load_b3d<'a, 'b>(
             return Err(err);
         }
 
-        load_context.set_labeled_asset("Scene", LoadedAsset::new(Scene::new(world)))
+        let loaded_scene = scene_load_context.finish(Scene::new(world), None);
+        load_context.add_loaded_labeled_asset("Scene", loaded_scene)
     };
 
-    load_context.set_default_asset(LoadedAsset::new(B3D {
+    Ok(B3D {
         scene,
         materials,
         nodes,
         meshes,
-    }));
-
-    Ok(())
+    })
 }
 
 /// Loads a b3d node.
@@ -159,12 +168,9 @@ fn load_node(
 
         let mesh_label = mesh_label(0);
 
-        let mesh_asset_path = AssetPath::new_ref(load_context.path(), Some(&mesh_label));
-        let material_asset_path = AssetPath::new_ref(load_context.path(), Some("Material0"));
-
         let mut mesh_entity = parent.spawn(PbrBundle {
-            mesh: load_context.get_handle(mesh_asset_path),
-            material: load_context.get_handle(material_asset_path),
+            mesh: load_context.get_label_handle(mesh_label.to_owned()),
+            material: load_context.get_label_handle("Material0"),
             ..Default::default()
         });
 
@@ -246,7 +252,7 @@ fn load_mesh(b3d_mesh: &b3d::Mesh, index: u32) -> Result<(Mesh, String), B3DErro
 /// Loads a b3d texture as a bevy [`Image`] and returns it together with its label.
 async fn load_texture<'a>(
     b3d_texture: &b3d::Texture,
-    load_context: &LoadContext<'a>,
+    load_context: &mut LoadContext<'a>,
     supported_compressed_formats: CompressedImageFormats,
 ) -> Result<Image, B3DError> {
     let parent = load_context.path().parent().unwrap();
@@ -265,6 +271,7 @@ async fn load_texture<'a>(
         image_type,
         supported_compressed_formats,
         true,
+        ImageSampler::Default,
     )?)
 }
 

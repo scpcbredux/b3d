@@ -1,6 +1,6 @@
 [package]
 name = "b3d"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "A parser for the b3d extension"
@@ -10,5 +10,5 @@ repository = "https://github.com/DotWith/b3d/"
 readme = "../README.md"
 
 [dependencies]
-thiserror = "1.0.38"
-byteorder = "1.4.3"
+thiserror = "1.0.51"
+byteorder = "1.5.0"
