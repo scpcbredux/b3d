@@ -4,6 +4,7 @@ use bevy::{
     prelude::*,
     render::{
         mesh::Indices,
+        render_asset::RenderAssetUsages,
         render_resource::PrimitiveTopology,
         renderer::RenderDevice,
         texture::{CompressedImageFormats, ImageSampler, ImageType, TextureError},
@@ -193,7 +194,10 @@ fn load_node(
 }
 
 fn load_mesh(b3d_mesh: &b3d::Mesh, index: u32) -> Result<(Mesh, String), B3DError> {
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
 
     if let Some(vertex_attribute) = b3d_mesh
         .vertices
@@ -236,7 +240,7 @@ fn load_mesh(b3d_mesh: &b3d::Mesh, index: u32) -> Result<(Mesh, String), B3DErro
         .collect::<Vec<_>>()
         .into()
     {
-        mesh.set_indices(Some(Indices::U32(vertex_attribute)));
+        mesh.insert_indices(Indices::U32(vertex_attribute));
     }
 
     if let Err(err) = mesh.generate_tangents() {
@@ -272,6 +276,7 @@ async fn load_texture<'a>(
         supported_compressed_formats,
         true,
         ImageSampler::Default,
+        RenderAssetUsages::default(),
     )?)
 }
 
