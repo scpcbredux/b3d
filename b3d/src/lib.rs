@@ -350,6 +350,10 @@ impl Node {
                 "NODE" => children.push(Node::read(data, chunk.next)?),
                 "ANIM" => animation = Animation::read(data, chunk.next)?,
                 "SEQS" => sequences.push(Sequence::read(data, chunk.next)?),
+                "PIVO" => {
+                    let mut buf = vec![0; chunk.size as usize];
+                    data.read_exact(&mut buf)?;
+                }
                 _ => return Err(Error::InvalidChunk(chunk).into()),
             }
         }
@@ -419,6 +423,10 @@ impl B3D {
                 "TEXS" => textures = Self::read_textures(&mut cursor, chunk.next)?,
                 "BRUS" => brushes = Self::read_brushes(&mut cursor, chunk.next)?,
                 "NODE" => node = Node::read(&mut cursor, chunk.next)?,
+                "PIVO" => {
+                    let mut buf = vec![0; chunk.size as usize];
+                    cursor.read_exact(&mut buf)?;
+                }
                 _ => return Err(Error::InvalidChunk(chunk).into()),
             }
         }
