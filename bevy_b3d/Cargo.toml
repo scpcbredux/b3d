@@ -12,6 +12,6 @@ keywords = ["bevy"]
 
 [dependencies]
 bevy = { version = "0.14.1", default-features = false, features = ["bevy_asset", "bevy_pbr", "bevy_render", "bevy_scene"] }
-b3d = { path = "../b3d", version = "0.1.7" }
+b3d = { path = "../b3d", version = "0.1.9" }
 thiserror = "1.0.63"
 anyhow = "1.0.86"
