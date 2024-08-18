@@ -5,6 +5,7 @@ use bevy::{
     render::{
         mesh::Indices,
         render_asset::RenderAssetUsages,
+        render_asset::RenderAssetUsages,
         render_resource::PrimitiveTopology,
         renderer::RenderDevice,
         texture::{CompressedImageFormats, ImageSampler, ImageType, TextureError},
@@ -202,6 +203,10 @@ fn load_mesh(b3d_mesh: &b3d::Mesh, index: u32) -> Result<(Mesh, String), B3DErro
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::default(),
     );
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
 
     if let Some(vertex_attribute) = b3d_mesh
         .vertices
@@ -244,6 +249,7 @@ fn load_mesh(b3d_mesh: &b3d::Mesh, index: u32) -> Result<(Mesh, String), B3DErro
         .collect::<Vec<_>>()
         .into()
     {
+        mesh.insert_indices(Indices::U32(vertex_attribute));
         mesh.insert_indices(Indices::U32(vertex_attribute));
     }
 
