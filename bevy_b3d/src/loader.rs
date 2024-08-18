@@ -4,6 +4,7 @@ use bevy::{
     prelude::*,
     render::{
         mesh::Indices,
+        render_asset::RenderAssetUsages,
         render_resource::PrimitiveTopology,
         renderer::RenderDevice,
         texture::{CompressedImageFormats, ImageSampler, ImageType, TextureError},
@@ -15,6 +16,7 @@ use thiserror::Error;
 use crate::B3D;
 
 /// An error that occurs when loading a b3d file.
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum B3DError {
     #[error(transparent)]
@@ -39,17 +41,15 @@ impl AssetLoader for B3DLoader {
     type Settings = ();
     type Error = B3DError;
 
-    fn load<'a>(
+    async fn load<'a>(
         &'a self,
-        reader: &'a mut Reader,
+        reader: &'a mut Reader<'_>,
         _settings: &'a (),
-        load_context: &'a mut LoadContext,
-    ) -> bevy::utils::BoxedFuture<'a, Result<B3D, Self::Error>> {
-        Box::pin(async move {
-            let mut bytes = Vec::new();
-            reader.read_to_end(&mut bytes).await?;
-            load_b3d(self, &bytes, load_context).await
-        })
+        load_context: &'a mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).await?;
+        load_b3d(self, &bytes, load_context).await
     }
 
     fn extensions(&self) -> &[&str] {
@@ -79,8 +79,13 @@ async fn load_b3d<'a, 'b>(
 
     let mut materials = vec![];
     for (texture_index, texture) in b3d.textures.into_iter().enumerate() {
-        if let Ok(texture) =
-            load_texture(&texture, load_context, loader.supported_compressed_formats).await
+        if let Ok(texture) = load_texture(
+            &texture,
+            load_context,
+            loader.supported_compressed_formats,
+            RenderAssetUsages::default(),
+        )
+        .await
         {
             let texture_handle =
                 load_context.add_labeled_asset(format!("Texture{}", texture_index), texture);
@@ -193,7 +198,10 @@ fn load_node(
 }
 
 fn load_mesh(b3d_mesh: &b3d::Mesh, index: u32) -> Result<(Mesh, String), B3DError> {
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
 
     if let Some(vertex_attribute) = b3d_mesh
         .vertices
@@ -236,7 +244,7 @@ fn load_mesh(b3d_mesh: &b3d::Mesh, index: u32) -> Result<(Mesh, String), B3DErro
         .collect::<Vec<_>>()
         .into()
     {
-        mesh.set_indices(Some(Indices::U32(vertex_attribute)));
+        mesh.insert_indices(Indices::U32(vertex_attribute));
     }
 
     if let Err(err) = mesh.generate_tangents() {
@@ -254,6 +262,7 @@ async fn load_texture<'a>(
     b3d_texture: &b3d::Texture,
     load_context: &mut LoadContext<'a>,
     supported_compressed_formats: CompressedImageFormats,
+    render_asset_usages: RenderAssetUsages,
 ) -> Result<Image, B3DError> {
     let parent = load_context.path().parent().unwrap();
     let image_path = parent.join(&b3d_texture.file);
@@ -272,6 +281,7 @@ async fn load_texture<'a>(
         supported_compressed_formats,
         true,
         ImageSampler::Default,
+        render_asset_usages,
     )?)
 }
 

@@ -11,7 +11,7 @@ readme = "../README.md"
 keywords = ["bevy"]
 
 [dependencies]
-bevy = { version = "0.12.1", default-features = false, features = ["bevy_asset", "bevy_pbr", "bevy_render", "bevy_scene"] }
+bevy = { version = "0.14.1", default-features = false, features = ["bevy_asset", "bevy_pbr", "bevy_render", "bevy_scene"] }
 b3d = { path = "../b3d", version = "0.1.7" }
-thiserror = "1.0.51"
-anyhow = "1.0.76"
+thiserror = "1.0.63"
+anyhow = "1.0.86"
