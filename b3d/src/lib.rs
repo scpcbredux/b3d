@@ -344,8 +344,9 @@ impl Node {
                 "MESH" => mesh = Mesh::read(data, chunk.next)?,
                 "BONE" => bones = Self::read_bones(data, chunk.next)?,
                 "KEYS" => {
-                    key_flags = data.read_u32::<LittleEndian>()?;
-                    keys = Self::read_keys(data, chunk.next, key_flags)?;
+                    let kf = data.read_u32::<LittleEndian>()?;
+                    key_flags |= kf;
+                    keys.extend(Self::read_keys(data, chunk.next, kf)?);
                 },
                 "NODE" => children.push(Node::read(data, chunk.next)?),
                 "ANIM" => animation = Animation::read(data, chunk.next)?,
